@@ -1,0 +1,4 @@
+micronaut:
+  application:
+    name: kadmin
+kafka.bootstrap.servers: localhost:9092
