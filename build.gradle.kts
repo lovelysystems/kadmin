@@ -9,7 +9,7 @@ plugins {
 version = "0.1"
 group = "ls"
 
-val kotlinVersion=project.properties.get("kotlinVersion")
+val kotlinVersion = project.properties.get("kotlinVersion")
 repositories {
     mavenCentral()
 }
@@ -44,9 +44,17 @@ dependencies {
 
 }
 
+tasks.jar {
+    manifest {
+        attributes(
+            "Implementation-Version" to archiveVersion
+        )
+    }
+}
 
 application {
     mainClass.set("ls.KadminCommand")
+
 }
 java {
     sourceCompatibility = JavaVersion.toVersion("17")

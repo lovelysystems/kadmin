@@ -2,11 +2,29 @@ package ls
 
 import io.micronaut.configuration.picocli.PicocliRunner
 import jakarta.inject.Inject
-import picocli.CommandLine.Command
-import picocli.CommandLine.Option
+import picocli.CommandLine.*
 import java.util.*
 
-@Command(name = "kadmin", mixinStandardHelpOptions = true)
+/**
+ * Provides the version from the manifest.
+ * TODO: version info is not available in native builds
+ */
+class VersionProvider : IVersionProvider {
+    override fun getVersion(): Array<String> {
+        return arrayOf(javaClass.`package`.implementationVersion)
+    }
+}
+
+class PartitionFilterOptions {
+
+    @Option(names = ["-r"], description = ["filter by number of replicas"])
+    var filterNumReplicas: Int? = null
+
+    @Option(names = ["-t"], description = ["filter topics by name"])
+    var filterName: String? = null
+}
+
+@Command(name = "kadmin", mixinStandardHelpOptions = true, versionProvider = VersionProvider::class)
 class KadminCommand() : Runnable {
 
     @Inject
@@ -25,14 +43,11 @@ class KadminCommand() : Runnable {
     )
     fun ensureReplicas(
         num: Int,
-        @Option(names = ["-r"], description = ["filter by number of replicas"])
-        filterNumReplicas: Int? = null,
-        @Option(names = ["-t"], description = ["filter topics by name"])
-        filterName: String? = null,
+        @Mixin filters: PartitionFilterOptions,
         @Option(names = ["--apply"], description = ["apply the reassignments"])
-        applyReassignments: Boolean = false
+        applyReassignments: Boolean = false,
     ) {
-        val ra = admin.ensureReplicas(num, filterNumReplicas, filterName)
+        val ra = admin.ensureReplicas(num, filters.filterNumReplicas, filters.filterName)
 
         println("reassignments to be issued:")
         ra.forEach { (tp, a) ->
@@ -50,13 +65,8 @@ class KadminCommand() : Runnable {
     }
 
     @Command(description = ["lists topic partitions"])
-    fun list(
-        @Option(names = ["-r"], description = ["filter by number of replicas"])
-        filterNumReplicas: Int? = null,
-        @Option(names = ["-t"], description = ["filter topics by name"])
-        filterName: String? = null,
-    ) {
-        admin.partitions(filterNumReplicas, filterName).forEach { (t, p) ->
+    fun list(@Mixin filterOptions: PartitionFilterOptions) {
+        admin.partitions(filterOptions.filterNumReplicas, filterOptions.filterName).forEach { (t, p) ->
             println("${t.name()} ${p.partition()} -> ${p.replicas().map { it.id() }}")
         }
     }
