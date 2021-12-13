@@ -12,4 +12,7 @@
     <root level="warn">
         <appender-ref ref="CONSOLE"/>
     </root>
+
+    <!--  mute kafka admin client logger, since it wrongly uses WARN level for DEBUG stuff  -->
+    <logger name="org.apache.kafka.clients.admin.AdminClientConfig" level="ERROR"/>
 </configuration>

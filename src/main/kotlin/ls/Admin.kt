@@ -17,7 +17,6 @@ class Admin(val admin: AdminClient) {
 
     private inner class Reassigner(val numReplicas: Int) {
 
-        val sizes = logDirSizes().toMutableMap()
         val partitionSizes = mutableMapOf<TopicPartition, Long>()
         val nodes = admin.describeCluster().nodes().get().map { it.id() }
         val nodeSizes = admin.describeLogDirs(nodes).allDescriptions().get().map { (id, descriptions) ->
@@ -31,7 +30,7 @@ class Admin(val admin: AdminClient) {
         }.toMap().toMutableMap()
 
         private fun nextBrokerId(exclude: Collection<Int>): Int {
-            return sizes.filter { !exclude.contains(it.key) }.minByOrNull { it.value }?.key
+            return nodeSizes.filter { !exclude.contains(it.key) }.minByOrNull { it.value }?.key
                 ?: error("no more brokers found. excluded: ${exclude.joinToString()}")
         }
 
@@ -47,14 +46,19 @@ class Admin(val admin: AdminClient) {
             while (targets.size < numReplicas) {
                 val addedBroker = nextBrokerId(targets)
                 targets += addedBroker
-                nodeSizes[addedBroker] = nodeSizes[addedBroker]!! + (size)
+                val newSizeAfterReassign = nodeSizes[addedBroker]!! + (size)
+                nodeSizes[addedBroker] = newSizeAfterReassign
             }
             return Pair(tp, NewPartitionReassignment(targets))
         }
 
-        fun computeReassignments(descs: Sequence<Pair<TopicDescription, TopicPartitionInfo>>): Map<TopicPartition, NewPartitionReassignment> {
+        fun computeReassignments(
+            descs: Sequence<Pair<TopicDescription, TopicPartitionInfo>>,
+            limit: Int,
+        ): Map<TopicPartition, NewPartitionReassignment> {
             // add the big partitions first because the cluster is likely more uneven at the beginning of the computation
-            val sorted = descs.sortedBy { -(partitionSizes[it.second.topicPartition(it.first.name())] ?: 0L) }
+            val sorted =
+                descs.sortedBy { -(partitionSizes[it.second.topicPartition(it.first.name())] ?: 0L) }.take(limit)
             val reassignments = sorted.map { computeReassignment(it.first, it.second) }.filterNotNull()
             return reassignments.toMap()
         }
@@ -74,11 +78,12 @@ class Admin(val admin: AdminClient) {
 
     fun ensureReplicas(
         num: Int,
+        limit: Int,
         filterNumReplicas: Int? = null,
-        filterName: String? = null
+        filterName: String? = null,
     ): Map<TopicPartition, NewPartitionReassignment> {
         val r = Reassigner(num)
-        return r.computeReassignments(partitions(filterNumReplicas, filterName))
+        return r.computeReassignments(partitions(filterNumReplicas, filterName), limit)
     }
 
     fun partitions(filterNumReplicas: Int? = null, filterName: String? = null) =

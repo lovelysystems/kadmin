@@ -24,8 +24,13 @@ class PartitionFilterOptions {
     var filterName: String? = null
 }
 
-@Command(name = "kadmin", mixinStandardHelpOptions = true, versionProvider = VersionProvider::class)
-class KadminCommand() : Runnable {
+@Command(
+    name = "kadmin",
+    mixinStandardHelpOptions = true,
+    versionProvider = VersionProvider::class,
+    showDefaultValues = true
+)
+class KadminCommand : Runnable {
 
     @Inject
     lateinit var admin: Admin
@@ -39,15 +44,18 @@ class KadminCommand() : Runnable {
 
     @Command(
         name = "ensure-replicas",
-        description = ["sets the number of replicas of matching partitions to at least the given number"]
+        description = ["sets the number of replicas of matching partitions to at least the given number"],
+        showDefaultValues = true,
     )
     fun ensureReplicas(
         num: Int,
+        @Option(names = ["-l"], description = ["limit the maximum number of reassignments to add"], defaultValue = "5")
+        limit: Int,
         @Mixin filters: PartitionFilterOptions,
         @Option(names = ["--apply"], description = ["apply the reassignments"])
         applyReassignments: Boolean = false,
     ) {
-        val ra = admin.ensureReplicas(num, filters.filterNumReplicas, filters.filterName)
+        val ra = admin.ensureReplicas(num, limit, filters.filterNumReplicas, filters.filterName)
 
         println("reassignments to be issued:")
         ra.forEach { (tp, a) ->
@@ -64,7 +72,7 @@ class KadminCommand() : Runnable {
         }
     }
 
-    @Command(description = ["lists topic partitions"])
+    @Command(description = ["lists topic partitions"], showDefaultValues = true)
     fun list(@Mixin filterOptions: PartitionFilterOptions) {
         admin.partitions(filterOptions.filterNumReplicas, filterOptions.filterName).forEach { (t, p) ->
             println("${t.name()} ${p.partition()} -> ${p.replicas().map { it.id() }}")
